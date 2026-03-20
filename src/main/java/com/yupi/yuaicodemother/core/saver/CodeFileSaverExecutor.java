@@ -16,10 +16,10 @@ public class CodeFileSaverExecutor {
     private static final HtmlCodeSaver htmlCodeSaver = new HtmlCodeSaver();
     private static final MultiFileCodeSaver multiFileCodeSaver = new MultiFileCodeSaver();
 
-    public static File executeSaver(Object codeResult, CodeGenTypeEnum codeGenType) {
+    public static File executeSaver(Object codeResult, CodeGenTypeEnum codeGenType, Long appId) {
         return switch (codeGenType) {
-            case HTML -> htmlCodeSaver.saveCodeResult((HtmlCodeResult)codeResult);
-            case MULTI_FILE -> multiFileCodeSaver.saveCodeResult((MultiFileCodeResult)codeResult);
+            case HTML -> htmlCodeSaver.saveCodeResult((HtmlCodeResult)codeResult, appId);
+            case MULTI_FILE -> multiFileCodeSaver.saveCodeResult((MultiFileCodeResult)codeResult, appId);
             default -> throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的代码生成类型：" + codeGenType + " 仅支持html和多文件格式");
         };
     }

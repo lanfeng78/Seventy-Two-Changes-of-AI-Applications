@@ -2,6 +2,9 @@ package com.yupi.yuaicodemother.core;
 
 import com.yupi.yuaicodemother.ai.model.HtmlCodeResult;
 import com.yupi.yuaicodemother.ai.model.MultiFileCodeResult;
+import com.yupi.yuaicodemother.core.parser.HtmlCodeParser;
+import com.yupi.yuaicodemother.core.parser.MultiFileCodeParser;
+import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -9,6 +12,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
 class CodeParserTest {
+
+    @Resource
+    private HtmlCodeParser htmlCodeParser;
+
+    @Resource
+    private MultiFileCodeParser multiFileCodeParser;
 
     @Test
     void parseHtmlCode() {
@@ -27,7 +36,7 @@ class CodeParserTest {
 
                 随便写一段描述
                 """;
-        HtmlCodeResult result = CodeParser.parseHtmlCode(codeContent);
+        HtmlCodeResult result = htmlCodeParser.parseCode(codeContent);
         assertNotNull(result);
         assertNotNull(result.getHtmlCode());
     }
@@ -60,7 +69,7 @@ class CodeParserTest {
 
                 文件创建完成！
                 """;
-        MultiFileCodeResult result = CodeParser.parseMultiFileCode(codeContent);
+        MultiFileCodeResult result = multiFileCodeParser.parseCode(codeContent);
         assertNotNull(result);
         assertNotNull(result.getHtmlCode());
         assertNotNull(result.getCssCode());

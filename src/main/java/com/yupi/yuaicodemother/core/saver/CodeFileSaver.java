@@ -25,11 +25,11 @@ public abstract class CodeFileSaver<T> {
      * @param result
      * @return
      */
-    public File saveCodeResult(T result)  {
+    public File saveCodeResult(T result, Long appId)  {
         // 1. 校验输入
         validateInput(result);
         // 2. 构建唯一目录
-        String baseDirPath = buildUniqueDir();
+        String baseDirPath = buildUniqueDir(appId);
         // 3. 保存文件，由子类实现
         saveFiles(result, baseDirPath);
         // 4. 返回File对象
@@ -39,9 +39,10 @@ public abstract class CodeFileSaver<T> {
     /**
      * 构建唯一目录路径：tmp/code_output/bizType_雪花ID
      */
-    private String buildUniqueDir() {
+    private String buildUniqueDir(Long appId) {
         CodeGenTypeEnum codeGenType = getCodeGenType();
         String bizType = codeGenType.getValue();
+        //TODO 这里用雪花ID得到的目录，后续要将其与 appId 结合起来
         String uniqueDirName = StrUtil.format("{}_{}", bizType, IdUtil.getSnowflakeNextIdStr());
         String dirPath = FILE_SAVE_ROOT_DIR + File.separator + uniqueDirName;
         FileUtil.mkdir(dirPath);
