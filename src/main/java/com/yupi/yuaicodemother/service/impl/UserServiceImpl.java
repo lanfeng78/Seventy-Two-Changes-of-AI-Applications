@@ -1,21 +1,25 @@
 package com.yupi.yuaicodemother.service.impl;
 
-import cn.hutool.Hutool;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.digest.DigestUtil;
-import cn.hutool.db.sql.Query;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
+import com.yupi.yuaicodemother.model.dto.user.UserQueryRequest;
 import com.yupi.yuaicodemother.model.entity.User;
 import com.yupi.yuaicodemother.mapper.UserMapper;
 import com.yupi.yuaicodemother.model.vo.LoginUserVO;
+import com.yupi.yuaicodemother.model.vo.UserVO;
 import com.yupi.yuaicodemother.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.yupi.yuaicodemother.constant.UserConstant.USER_LOGIN_STATE;
 
@@ -111,7 +115,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public User getCurrentUser(HttpServletRequest httpServletRequest) {
-        LoginUserVO curUser = (LoginUserVO) httpServletRequest.getSession().getAttribute(USER_LOGIN_STATE);
+        User curUser = (User) httpServletRequest.getSession().getAttribute(USER_LOGIN_STATE);
         if (curUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR, "未登录");
         }
@@ -126,11 +130,61 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public boolean UserLogout(HttpServletRequest httpServletRequest) {
-        LoginUserVO curUser = (LoginUserVO) httpServletRequest.getSession().getAttribute(USER_LOGIN_STATE);
+        User curUser = (User) httpServletRequest.getSession().getAttribute(USER_LOGIN_STATE);
         if (curUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR, "未登录");
         }
         httpServletRequest.getSession().removeAttribute(USER_LOGIN_STATE);
         return true;
     }
+
+/**
+ * 将User对象转换为UserVO对象
+ * @param user 用户实体对象
+ * @return 转换后的用户视图对象，如果输入为null则返回null
+ */
+@Override
+public UserVO getUserVO(User user) {
+    // 如果传入的用户对象为null，直接返回null
+        if (user == null) {
+            return null;
+        }
+    // 创建新的UserVO对象
+        UserVO userVO = new UserVO();
+    // 使用BeanUtil工具类将user对象的属性复制到userVO对象中
+        BeanUtil.copyProperties(user, userVO);
+    // 返回转换后的UserVO对象
+        return userVO;
+    }
+
+    @Override
+    public List<UserVO> getUserVOList(List<User> userList) {
+        if (CollUtil.isEmpty(userList)) {
+            return new ArrayList<>();
+        }
+        return userList.stream().map(this::getUserVO).collect(Collectors.toList());
+    }
+
+    @Override
+    public QueryWrapper getQueryWrapper(UserQueryRequest userQueryRequest) {
+        if (userQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");
+        }
+        Long id = userQueryRequest.getId();
+        String userAccount = userQueryRequest.getUserAccount();
+        String userName = userQueryRequest.getUserName();
+        String userProfile = userQueryRequest.getUserProfile();
+        String userRole = userQueryRequest.getUserRole();
+        String sortField = userQueryRequest.getSortField();
+        String sortOrder = userQueryRequest.getSortOrder();
+        return QueryWrapper.create()
+                .eq("id", id)
+                .eq("userRole", userRole)
+                .like("userAccount", userAccount)
+                .like("userName", userName)
+                .like("userProfile", userProfile)
+                .orderBy(sortField, "ascend".equals(sortOrder));
+    }
+
+
 }

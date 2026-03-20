@@ -7,10 +7,13 @@ spring:
     url: jdbc:mysql://localhost:3306/yu_ai_code_mother
     username: root
     password: 123456
+  profiles:
+    active: local
 server:
   port: 8081
   servlet:
     context-path: /api
+
 # springdoc-openapi
 springdoc:
   group-configs:

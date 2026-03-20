@@ -1,9 +1,14 @@
 package com.yupi.yuaicodemother.service;
 
+import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
+import com.yupi.yuaicodemother.model.dto.user.UserQueryRequest;
 import com.yupi.yuaicodemother.model.entity.User;
 import com.yupi.yuaicodemother.model.vo.LoginUserVO;
+import com.yupi.yuaicodemother.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+
+import java.util.List;
 
 /**
  * 用户 服务层。
@@ -62,4 +67,25 @@ public interface UserService extends IService<User> {
      */
     boolean UserLogout(HttpServletRequest httpServletRequest);
 
+    /**
+     * 将User对象转换为UserVO对象
+     * @param user 用户实体对象
+     * @return 转换后的用户视图对象，如果输入为null则返回null
+     */
+    UserVO getUserVO(User user);
+
+    /**
+     * 将User对象列表转换为UserVO对象列表
+     * @param userList 用户实体对象列表
+     * @return
+     */
+    List<UserVO> getUserVOList(List<User> userList);
+
+    /**
+     * 根据用户查询请求条件构造查询包装器
+     *
+     * @param userQueryRequest 用户查询请求对象，包含查询条件
+     * @return 返回一个QueryWrapper对象，用于构建数据库查询条件
+     */
+    QueryWrapper getQueryWrapper(UserQueryRequest userQueryRequest);
 }
