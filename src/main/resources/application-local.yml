@@ -1,0 +1,20 @@
+# AI
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: https://api.deepseek.com
+      api-key: sk-10a3fcf52b4b47d7afaf0b8125f6e82a
+      model-name: deepseek-chat
+      log-requests: true
+      log-responses: true
+      max-tokens: 8192
+      response-format: json_object
+      max-retries: 2
+    streaming-chat-model:
+      base-url: https://api.deepseek.com
+      api-key: sk-10a3fcf52b4b47d7afaf0b8125f6e82a
+      model-name: deepseek-chat
+      log-requests: true
+      log-responses: true
+      max-tokens: 8192
+      max-retries: 2
