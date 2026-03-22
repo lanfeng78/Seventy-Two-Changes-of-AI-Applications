@@ -1,3 +1,7 @@
+
+create database yu_ai_code_mother;
+
+use yu_ai_code_mother;
 -- 用户表
 create table if not exists user
 (

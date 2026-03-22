@@ -2,9 +2,14 @@ package com.yupi.yuaicodemother.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.io.IORuntimeException;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.yupi.yuaicodemother.constant.AppConstant;
 import com.yupi.yuaicodemother.core.AiCodeGeneratorFacade;
 import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
@@ -19,11 +24,14 @@ import com.yupi.yuaicodemother.model.vo.UserVO;
 import com.yupi.yuaicodemother.service.AppService;
 import com.yupi.yuaicodemother.service.UserService;
 import jakarta.annotation.Resource;
+import org.springframework.boot.autoconfigure.ssl.SslProperties;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.File;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -135,6 +143,51 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                         .data("")
                         .build()
         ));
+
+    }
+
+    @Override
+    public String deployApp(Long appId, User loginUser) {
+        // 1. 校验请求参数是否为空
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用id有误，不符合规范");
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR, "未登录");
+        // 2. 通过appId的得到对应的应用
+        App app = this.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "请求部署的应用id不存在");
+        // 3. 只有应用的创建者才可以部署应用
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "当前用户无权限部署该应用");
+        }
+        // 4. 查找该应用的部署key，若存在，就直接用，若不存在，就创建一个
+        String deployKey = app.getDeployKey();
+        if (StrUtil.isBlank(deployKey)) {
+            deployKey = RandomUtil.randomString(6);
+        }
+        // 5. 构建源路径
+        String codeGenType = app.getCodeGenType();
+        String sourceDirName = codeGenType + "_" + appId;
+        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        File sourceFile = new File(sourceDirPath);
+        if (!sourceFile.exists() || !sourceFile.isDirectory()) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "应用代码不存在，请先生成代码");
+        }
+        // 6. 构建部署路径
+        String targetDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator + deployKey;
+        // 7. 将源路径复制到部署路径
+        try {
+            FileUtil.copyContent(sourceFile, new File(targetDirPath), true);
+        } catch (IORuntimeException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "部署失败：" + e.getMessage());
+        }
+        // 8. 更新应用到数据库
+        App newApp = new App();
+        newApp.setId(appId);
+        newApp.setDeployKey(deployKey);
+        newApp.setDeployedTime(LocalDateTime.now());
+        boolean updated = this.updateById(newApp);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
+        // 9. 返回可访问的url
+        return String.format("%s/%s/", AppConstant.CODE_DEPLOY_ROOT_DIR, deployKey);
 
     }
 

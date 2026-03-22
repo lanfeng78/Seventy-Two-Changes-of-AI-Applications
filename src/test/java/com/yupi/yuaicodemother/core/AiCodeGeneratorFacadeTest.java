@@ -19,7 +19,7 @@ class AiCodeGeneratorFacadeTest {
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
     @Test
     void generateAndSaveCode() {
-        File file = aiCodeGeneratorFacade.generateAndSaveCode("帮我生成一个计划清单，不超过20行代码", CodeGenTypeEnum.MULTI_FILE, 1L);
+        File file = aiCodeGeneratorFacade.generateAndSaveCode("帮我生成一个计划清单，不超过20行代码", CodeGenTypeEnum.MULTI_FILE, 393312688213172224L);
         assertNotNull(file);
     }
 

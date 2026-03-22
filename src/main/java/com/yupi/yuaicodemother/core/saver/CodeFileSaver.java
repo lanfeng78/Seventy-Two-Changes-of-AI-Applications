@@ -10,6 +10,8 @@ import com.yupi.yuaicodemother.model.enums.CodeGenTypeEnum;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 
+import static com.yupi.yuaicodemother.constant.AppConstant.CODE_OUTPUT_ROOT_DIR;
+
 /**
  * 模板抽象类
  * @author Lanfeng
@@ -18,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 public abstract class CodeFileSaver<T> {
 
     // 文件保存根目录
-    private static final String FILE_SAVE_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_output";
+    private static final String FILE_SAVE_ROOT_DIR = CODE_OUTPUT_ROOT_DIR;
 
     /**
      * 模板方法，定义了算法的骨架
@@ -43,7 +45,7 @@ public abstract class CodeFileSaver<T> {
         CodeGenTypeEnum codeGenType = getCodeGenType();
         String bizType = codeGenType.getValue();
         //TODO 这里用雪花ID得到的目录，后续要将其与 appId 结合起来
-        String uniqueDirName = StrUtil.format("{}_{}", bizType, IdUtil.getSnowflakeNextIdStr());
+        String uniqueDirName = StrUtil.format("{}_{}", bizType, appId);
         String dirPath = FILE_SAVE_ROOT_DIR + File.separator + uniqueDirName;
         FileUtil.mkdir(dirPath);
         return dirPath;
@@ -64,7 +66,7 @@ public abstract class CodeFileSaver<T> {
      * 写入单个文件
      */
     protected final void writeToFile(String dirPath, String filename, String content) {
-        if (StrUtil.isBlank(content)) {
+        if (!StrUtil.isBlank(content)) {
             String filePath = dirPath + File.separator + filename;
             FileUtil.writeString(content, filePath, StandardCharsets.UTF_8);
 
