@@ -18,19 +18,22 @@ import com.yupi.yuaicodemother.model.dto.app.AppQueryRequest;
 import com.yupi.yuaicodemother.model.entity.App;
 import com.yupi.yuaicodemother.mapper.AppMapper;
 import com.yupi.yuaicodemother.model.entity.User;
+import com.yupi.yuaicodemother.model.enums.ChatHistoryMessageTypeEnum;
 import com.yupi.yuaicodemother.model.enums.CodeGenTypeEnum;
 import com.yupi.yuaicodemother.model.vo.AppVO;
 import com.yupi.yuaicodemother.model.vo.UserVO;
 import com.yupi.yuaicodemother.service.AppService;
+import com.yupi.yuaicodemother.service.ChatHistoryService;
 import com.yupi.yuaicodemother.service.UserService;
 import jakarta.annotation.Resource;
-import org.springframework.boot.autoconfigure.ssl.SslProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.File;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -41,6 +44,7 @@ import java.util.stream.Collectors;
  * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
  */
 @Service
+@Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
     @Resource
@@ -48,6 +52,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
+
+    @Resource
+    private ChatHistoryService chatHistoryService;
 
     @Override
     public AppVO getAppVO(App app) {
@@ -127,22 +134,42 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         String codeGenType = app.getCodeGenType();
         CodeGenTypeEnum genType = CodeGenTypeEnum.getEnumByValue(codeGenType);
         ThrowUtils.throwIf(genType == null, ErrorCode.PARAMS_ERROR, "不支持这种代码生成格式");
-        // 5. 返回通过门面得到的Flux流数据
+        // 5. 将用户的消息保存到数据库中
+        boolean userSaved = chatHistoryService.addChatMessage(appId, message,
+                ChatHistoryMessageTypeEnum.USER.getValue(), loginUser);
+        ThrowUtils.throwIf(!userSaved, ErrorCode.SYSTEM_ERROR, "用户信息保存失败");
+        // 6. 返回通过门面得到的Flux流数据
         Flux<String> stringFlux = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
-        return stringFlux.map(
+        // 7. 将AI的消息保存到数据库中
+        StringBuilder codeBuilder = new StringBuilder();
+        Flux<String> processedFlux = stringFlux.map(chunk -> {
+            // 实时收集代码片段
+            codeBuilder.append(chunk);
+            return chunk;
+        }).doOnComplete(() -> {
+            // 流式返回完成后保存代码
+            String aiMessage = codeBuilder.toString();
+            if (StrUtil.isNotBlank(aiMessage)) {
+                chatHistoryService.addChatMessage(appId, aiMessage, ChatHistoryMessageTypeEnum.AI.getValue(),
+                        loginUser);
+            }
+        }).doOnError(error -> {
+            String errorMessage = "AI回复失败：" + error.getMessage();
+            chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser);
+        });
+
+        return processedFlux.map(
                 chunk -> {
                     Map<String, String> stringMap = Map.of("d", chunk);
                     String jsonStr = JSONUtil.toJsonStr(stringMap);
                     return ServerSentEvent.<String>builder()
                             .data(jsonStr)
                             .build();
-                }
-        ).concatWith(Mono.just(
-                ServerSentEvent.<String>builder()
-                        .event("done")
-                        .data("")
-                        .build()
-        ));
+                }).concatWith(Mono.just(
+                        ServerSentEvent.<String>builder()
+                                .event("done")
+                                .data("")
+                                .build()));
 
     }
 
@@ -191,5 +218,31 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     }
 
+    /**
+     * 删除应用时关联删除对话历史
+     *
+     * @param id 应用ID
+     * @return 是否成功
+     */
+    @Override
+    public boolean removeById(Serializable id) {
+        if (id == null) {
+            return false;
+        }
+        // 转换为 Long 类型
+        Long appId = Long.valueOf(id.toString());
+        if (appId <= 0) {
+            return false;
+        }
+        // 先删除关联的对话历史
+        try {
+            chatHistoryService.deleteByAppId(appId);
+        } catch (Exception e) {
+            // 记录日志但不阻止应用删除
+            log.error("删除应用关联对话历史失败: {}", e.getMessage());
+        }
+        // 删除应用
+        return super.removeById(id);
+    }
 
 }
