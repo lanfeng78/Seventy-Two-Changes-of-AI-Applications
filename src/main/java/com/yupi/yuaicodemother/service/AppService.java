@@ -6,7 +6,6 @@ import com.yupi.yuaicodemother.model.dto.app.AppQueryRequest;
 import com.yupi.yuaicodemother.model.entity.App;
 import com.yupi.yuaicodemother.model.entity.User;
 import com.yupi.yuaicodemother.model.vo.AppVO;
-import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -48,7 +47,7 @@ public interface AppService extends IService<App> {
      * @param loginUser 当前登录用户
      * @return ai生成的代码流
      */
-    Flux<ServerSentEvent<String>> chatToGenCode(Long appId, String message, User loginUser);
+    Flux<String> chatToGenCode(Long appId, String message, User loginUser);
 
 
     /**

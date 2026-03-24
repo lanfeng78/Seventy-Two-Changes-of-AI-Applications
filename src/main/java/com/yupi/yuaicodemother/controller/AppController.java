@@ -2,6 +2,7 @@ package com.yupi.yuaicodemother.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.yupi.yuaicodemother.annotation.AuthCheck;
@@ -27,9 +28,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.yupi.yuaicodemother.model.entity.App;
 import com.yupi.yuaicodemother.service.AppService;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 应用 控制层。
@@ -64,7 +67,23 @@ public class AppController {
         // 获取当前登录用户
         User loginUser = userService.getCurrentUser(request);
         // 调用服务生成代码（流式）
-        return appService.chatToGenCode(appId, message, loginUser);
+        Flux<String> stringFlux = appService.chatToGenCode(appId, message, loginUser);
+        // 使用SSE对其再封装一层，以便前端能模拟打字机的输出效果
+        // 这里并没有直接将数据流返回给前端，而是使用一个map，
+        // 将每次的数据流放在一个map中，这样可以避免前端在解析时忽略空格的问题（deepseek就是类似的做法）
+        // 同时在最后加上了一个"done"事件，以区分是正常结束还是异常结束
+        return stringFlux.map(
+                chunk -> {
+                    Map<String, String> stringMap = Map.of("d", chunk);
+                    String jsonStr = JSONUtil.toJsonStr(stringMap);
+                    return ServerSentEvent.<String>builder()
+                            .data(jsonStr)
+                            .build();
+                }).concatWith(Mono.just(
+                ServerSentEvent.<String>builder()
+                        .event("done")
+                        .data("")
+                        .build()));
     }
 
 

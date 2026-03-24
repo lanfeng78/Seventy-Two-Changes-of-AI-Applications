@@ -120,7 +120,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> chatToGenCode(Long appId, String message, User loginUser) {
+    public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
         // 1. 校验参数是否为空
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "appId不存在或不符合规范！");
         // 2. 通过appId查询对应的应用
@@ -142,7 +142,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         Flux<String> stringFlux = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
         // 7. 将AI的消息保存到数据库中
         StringBuilder codeBuilder = new StringBuilder();
-        Flux<String> processedFlux = stringFlux.map(chunk -> {
+
+        return stringFlux.map(chunk -> {
             // 实时收集代码片段
             codeBuilder.append(chunk);
             return chunk;
@@ -157,19 +158,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             String errorMessage = "AI回复失败：" + error.getMessage();
             chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser);
         });
-
-        return processedFlux.map(
-                chunk -> {
-                    Map<String, String> stringMap = Map.of("d", chunk);
-                    String jsonStr = JSONUtil.toJsonStr(stringMap);
-                    return ServerSentEvent.<String>builder()
-                            .data(jsonStr)
-                            .build();
-                }).concatWith(Mono.just(
-                        ServerSentEvent.<String>builder()
-                                .event("done")
-                                .data("")
-                                .build()));
 
     }
 
