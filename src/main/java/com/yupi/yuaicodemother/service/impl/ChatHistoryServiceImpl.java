@@ -1,5 +1,6 @@
 package com.yupi.yuaicodemother.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -16,17 +17,23 @@ import com.yupi.yuaicodemother.model.entity.User;
 import com.yupi.yuaicodemother.model.enums.ChatHistoryMessageTypeEnum;
 import com.yupi.yuaicodemother.service.AppService;
 import com.yupi.yuaicodemother.service.ChatHistoryService;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 对话历史 服务层实现。
  *
  * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
  */
+@Slf4j
 @Service
 public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatHistory>  implements ChatHistoryService{
 
@@ -139,6 +146,44 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .eq("id", chatHistoryId);
         return this.remove(queryWrapper);
+    }
+
+    @Override
+    public int loadChatHistoryToMemory(long appId, MessageWindowChatMemory chatMemory, int maxCount) {
+        try {
+            // 1. 从数据库中查询对应appId的数据
+            QueryWrapper queryWrapper = new QueryWrapper();
+            queryWrapper.eq("appId", appId)
+                    .orderBy("createTime", true)
+                    // 当用户发起对话时，用户的新消息会被先保存到数据库中，而此时AI还并未生成代码，也就是aiService还没被调用，
+                    // 而对话记忆模块会自动将用户发送的新信息保存到记忆里面，也就是记忆里面率先有了一条用户发出的最新消息
+                    // 此时我们将数据库中的历史消息导入到内存中，就要从1开始，而不是从0开始，因为0是我们刚刚发出的新消息，
+                    // 如果从0开始，那么就会加载出两条最新的消息
+                    .limit(1, maxCount);
+            List<ChatHistory> chatHistoryList = this.list(queryWrapper);
+            if (CollUtil.isEmpty(chatHistoryList)) {
+                return 0;
+            }
+            // 2. 按时间顺序添加到记忆中
+            int loadedCount = 0;
+            // 3. 先清理一遍，避免缓存的影响
+            chatMemory.clear();
+            // 4. 将列表中的对话历史数据放到chatMemory中
+            for (ChatHistory chatHistory : chatHistoryList) {
+                if (ChatHistoryMessageTypeEnum.USER.getValue().equals(chatHistory.getMessageType())) {
+                    chatMemory.add(UserMessage.from(chatHistory.getMessage()));
+                } else if (ChatHistoryMessageTypeEnum.AI.getValue().equals(chatHistory.getMessageType())) {
+                    chatMemory.add(AiMessage.from(chatHistory.getMessage()));
+                }
+                loadedCount++;
+            }
+            log.info("成功为 appId：{} 加载了 {} 条历史对话", appId, loadedCount);
+            return loadedCount;
+        } catch (Exception e) {
+            log.error("加载对话历史失败，appId：{}, errorMessage：{}", appId, e.getMessage());
+            return 0;
+        }
+
     }
 
 
