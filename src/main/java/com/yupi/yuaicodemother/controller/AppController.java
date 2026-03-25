@@ -2,6 +2,7 @@ package com.yupi.yuaicodemother.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.yupi.yuaicodemother.annotation.AuthCheck;
@@ -27,9 +28,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.yupi.yuaicodemother.model.entity.App;
 import com.yupi.yuaicodemother.service.AppService;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 应用 控制层。
@@ -64,7 +67,20 @@ public class AppController {
         // 获取当前登录用户
         User loginUser = userService.getCurrentUser(request);
         // 调用服务生成代码（流式）
-        return appService.chatToGenCode(appId, message, loginUser);
+        Flux<String> processedFlux = appService.chatToGenCode(appId, message, loginUser);
+
+        return processedFlux.map(
+                chunk -> {
+                    Map<String, String> stringMap = Map.of("d", chunk);
+                    String jsonStr = JSONUtil.toJsonStr(stringMap);
+                    return ServerSentEvent.<String>builder()
+                            .data(jsonStr)
+                            .build();
+                }).concatWith(Mono.just(
+                ServerSentEvent.<String>builder()
+                        .event("done")
+                        .data("")
+                        .build()));
     }
 
 
@@ -90,7 +106,7 @@ public class AppController {
         // 应用名称暂时为 initPrompt 前 12 位
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
         // 暂时设置为多文件生成
-        app.setCodeGenType(CodeGenTypeEnum.MULTI_FILE.getValue());
+        app.setCodeGenType(CodeGenTypeEnum.VUE_PROJECT.getValue());
         // 插入数据库
         boolean result = appService.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);

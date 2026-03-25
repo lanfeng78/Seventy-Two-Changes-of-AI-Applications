@@ -11,6 +11,8 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.yupi.yuaicodemother.constant.AppConstant;
 import com.yupi.yuaicodemother.core.AiCodeGeneratorFacade;
+import com.yupi.yuaicodemother.core.builder.VueProjectBuilder;
+import com.yupi.yuaicodemother.core.handler.StreamHandlerExecutor;
 import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
 import com.yupi.yuaicodemother.exception.ThrowUtils;
@@ -55,6 +57,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private ChatHistoryService chatHistoryService;
+
+    @Resource
+    private StreamHandlerExecutor streamHandlerExecutor;
+
+    @Resource
+    private VueProjectBuilder vueProjectBuilder;
 
     @Override
     public AppVO getAppVO(App app) {
@@ -120,7 +128,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> chatToGenCode(Long appId, String message, User loginUser) {
+    public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
         // 1. 校验参数是否为空
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "appId不存在或不符合规范！");
         // 2. 通过appId查询对应的应用
@@ -139,37 +147,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 ChatHistoryMessageTypeEnum.USER.getValue(), loginUser);
         ThrowUtils.throwIf(!userSaved, ErrorCode.SYSTEM_ERROR, "用户信息保存失败");
         // 6. 返回通过门面得到的Flux流数据
+        //  注意：不同的代码生成类型得到的数据流格式不一样，html和multi-file是字符串流，vue-project是token流（json格式的）
         Flux<String> stringFlux = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, genType, appId);
-        // 7. 将AI的消息保存到数据库中
-        StringBuilder codeBuilder = new StringBuilder();
-        Flux<String> processedFlux = stringFlux.map(chunk -> {
-            // 实时收集代码片段
-            codeBuilder.append(chunk);
-            return chunk;
-        }).doOnComplete(() -> {
-            // 流式返回完成后保存代码
-            String aiMessage = codeBuilder.toString();
-            if (StrUtil.isNotBlank(aiMessage)) {
-                chatHistoryService.addChatMessage(appId, aiMessage, ChatHistoryMessageTypeEnum.AI.getValue(),
-                        loginUser);
-            }
-        }).doOnError(error -> {
-            String errorMessage = "AI回复失败：" + error.getMessage();
-            chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser);
-        });
-
-        return processedFlux.map(
-                chunk -> {
-                    Map<String, String> stringMap = Map.of("d", chunk);
-                    String jsonStr = JSONUtil.toJsonStr(stringMap);
-                    return ServerSentEvent.<String>builder()
-                            .data(jsonStr)
-                            .build();
-                }).concatWith(Mono.just(
-                        ServerSentEvent.<String>builder()
-                                .event("done")
-                                .data("")
-                                .build()));
+        // 7. 收集AI响应的消息并在分类别处理后保存到对话历史和响应前端
+        return streamHandlerExecutor.executeHandler(stringFlux, chatHistoryService, appId, loginUser, genType);
 
     }
 
@@ -194,26 +175,41 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         String codeGenType = app.getCodeGenType();
         String sourceDirName = codeGenType + "_" + appId;
         String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
-        File sourceFile = new File(sourceDirPath);
-        if (!sourceFile.exists() || !sourceFile.isDirectory()) {
+        // 6. 检查源目录是否存在
+        File sourceDir = new File(sourceDirPath);
+        if (!sourceDir.exists() || !sourceDir.isDirectory()) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "应用代码不存在，请先生成代码");
         }
-        // 6. 构建部署路径
+        // 7. Vue 项目特殊处理：执行构建
+        CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
+        if (codeGenTypeEnum == CodeGenTypeEnum.VUE_PROJECT) {
+            // Vue 项目需要构建
+            boolean buildSuccess = vueProjectBuilder.buildProject(sourceDirPath);
+            ThrowUtils.throwIf(!buildSuccess, ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败，请检查代码和依赖");
+            // 检查 dist 目录是否存在
+            File distDir = new File(sourceDirPath, "dist");
+            ThrowUtils.throwIf(!distDir.exists(), ErrorCode.SYSTEM_ERROR, "Vue 项目构建完成但未生成 dist 目录");
+            // 将 dist 目录作为部署源
+            sourceDir = distDir;
+            log.info("Vue 项目构建成功，将部署 dist 目录: {}", distDir.getAbsolutePath());
+        }
+
+        // 8. 构建部署路径
         String targetDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator + deployKey;
-        // 7. 将源路径复制到部署路径
+        // 9. 将源路径复制到部署路径
         try {
-            FileUtil.copyContent(sourceFile, new File(targetDirPath), true);
+            FileUtil.copyContent(sourceDir, new File(targetDirPath), true);
         } catch (IORuntimeException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "部署失败：" + e.getMessage());
         }
-        // 8. 更新应用到数据库
+        // 10. 更新应用到数据库
         App newApp = new App();
         newApp.setId(appId);
         newApp.setDeployKey(deployKey);
         newApp.setDeployedTime(LocalDateTime.now());
         boolean updated = this.updateById(newApp);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
-        // 9. 返回可访问的url
+        // 11. 返回可访问的url
         return String.format("%s/%s/", AppConstant.CODE_DEPLOY_ROOT_DIR, deployKey);
 
     }
