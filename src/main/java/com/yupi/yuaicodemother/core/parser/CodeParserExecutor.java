@@ -9,7 +9,6 @@ import com.yupi.yuaicodemother.model.enums.CodeGenTypeEnum;
  * @version 1.0
  */
 public class CodeParserExecutor {
-
     private static final HtmlCodeParser htmlCodeParser = new HtmlCodeParser();
     private static final MultiFileCodeParser multiFileCodeParser = new MultiFileCodeParser();
 
@@ -17,7 +16,8 @@ public class CodeParserExecutor {
         return switch (codeGenType) {
             case HTML -> htmlCodeParser.parseCode(codeContent);
             case MULTI_FILE -> multiFileCodeParser.parseCode(codeContent);
-            default -> throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的代码生成类型：" + codeGenType + " 仅支持html和多文件格式");
+            case VUE_PROJECT -> null;
+            default -> throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的代码生成类型：" + codeGenType + " 仅支持html，多文件，Vue工程格式");
         };
     }
 

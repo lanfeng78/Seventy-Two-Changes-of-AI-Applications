@@ -77,10 +77,11 @@ public class AiCodeGeneratorServiceFactory {
     private AiCodeGeneratorService createAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenTypeEnum) {
         log.info("为 appId: {} 创建新的 AI 服务实例", appId);
 
-        // 根据 appId 构建独立的对话记忆
+        // 根据 appId 和 codeGenType 构建独立的对话记忆
+        String memoryMixedId = getCachedKey(appId, codeGenTypeEnum);
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory
                 .builder()
-                .id(appId)
+                .id(memoryMixedId)
                 .chatMemoryStore(redisChatMemoryStore)
                 .maxMessages(50)
                 .build();
@@ -88,14 +89,14 @@ public class AiCodeGeneratorServiceFactory {
         chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 50);
 
         return switch (codeGenTypeEnum) {
-            case VUE_PROJECT ->  AiServices.builder(AiCodeGeneratorService.class)
+            case VUE_PROJECT -> AiServices.builder(AiCodeGeneratorService.class)
                     .chatModel(chatModel)
                     .streamingChatModel(openAiStreamingChatModel)
                     .chatMemoryProvider(memoryId -> chatMemory)
                     .tools(new FileWriteTool())
                     .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
-                            toolExecutionRequest, "Error: there is no such tool" + toolExecutionRequest.name())
-                    ).build();
+                            toolExecutionRequest, "Error: there is no such tool" + toolExecutionRequest.name()))
+                    .build();
             case HTML, MULTI_FILE -> AiServices.builder(AiCodeGeneratorService.class)
                     .chatModel(chatModel)
                     .streamingChatModel(openAiStreamingChatModel)
@@ -110,12 +111,9 @@ public class AiCodeGeneratorServiceFactory {
         return appId + "_" + codeGenTypeEnum.getValue();
     }
 
-
     @Bean
     public AiCodeGeneratorService aiCodeGeneratorService() {
         return getAiCodeGeneratorService(0L, CodeGenTypeEnum.HTML);
     }
 
-
 }
-

@@ -116,7 +116,9 @@ public class AiCodeGeneratorFacade {
                 Object parsedResult = CodeParserExecutor.executeParse(completeCode, codeGenType);
                 // 使用执行器保存代码
                 File savedDir = CodeFileSaverExecutor.executeSaver(parsedResult, codeGenType, appId);
-                log.info("保存成功，路径为：" + savedDir.getAbsolutePath());
+                if (!codeGenType.getValue().equals(CodeGenTypeEnum.VUE_PROJECT.getValue())) {
+                    log.info("保存成功，路径为：" + savedDir.getAbsolutePath());
+                }
             } catch (Exception e) {
                 log.error("保存失败: {}", e.getMessage());
             }

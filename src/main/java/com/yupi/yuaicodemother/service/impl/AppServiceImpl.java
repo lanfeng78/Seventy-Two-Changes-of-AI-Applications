@@ -210,7 +210,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         boolean updated = this.updateById(newApp);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
         // 11. 返回可访问的url
-        return String.format("%s/%s/", AppConstant.CODE_DEPLOY_ROOT_DIR, deployKey);
+        return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
 
     }
 

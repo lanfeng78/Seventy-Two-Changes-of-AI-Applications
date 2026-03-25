@@ -45,8 +45,8 @@ public class JsonMessageStreamHandler {
      * @return 处理后的流
      */
     public Flux<String> handle(Flux<String> originFlux,
-                               ChatHistoryService chatHistoryService,
-                               long appId, User loginUser) {
+            ChatHistoryService chatHistoryService,
+            long appId, User loginUser) {
         // 收集数据用于生成后端记忆格式
         StringBuilder chatHistoryStringBuilder = new StringBuilder();
         // 用于跟踪已经见过的工具ID，判断是否是第一次调用
@@ -60,7 +60,8 @@ public class JsonMessageStreamHandler {
                 .doOnComplete(() -> {
                     // 流式响应完成后，添加 AI 消息到对话历史
                     String aiResponse = chatHistoryStringBuilder.toString();
-                    chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser);
+                    chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(),
+                            loginUser);
                     // 异步构建vue工程
                     String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/vue_project_" + appId;
                     vueProjectBuilder.buildProjectAsync(projectPath);
@@ -68,14 +69,16 @@ public class JsonMessageStreamHandler {
                 .doOnError(error -> {
                     // 如果AI回复失败，也要记录错误消息
                     String errorMessage = "AI回复失败: " + error.getMessage();
-                    chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser);
+                    chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(),
+                            loginUser);
                 });
     }
 
     /**
      * 解析并收集 TokenStream 数据
      */
-    private String handleJsonMessageChunk(String chunk, StringBuilder chatHistoryStringBuilder, Set<String> seenToolIds) {
+    private String handleJsonMessageChunk(String chunk, StringBuilder chatHistoryStringBuilder,
+            Set<String> seenToolIds) {
         // 解析 JSON
         StreamMessage streamMessage = JSONUtil.toBean(chunk, StreamMessage.class);
         StreamMessageTypeEnum typeEnum = StreamMessageTypeEnum.getEnumByValue(streamMessage.getType());
@@ -89,11 +92,12 @@ public class JsonMessageStreamHandler {
             }
             case TOOL_REQUEST -> {
                 ToolRequestMessage toolRequestMessage = JSONUtil.toBean(chunk, ToolRequestMessage.class);
-                String toolId = toolRequestMessage.getId();
-                // 检查是否是第一次看到这个工具 ID
-                if (toolId != null && !seenToolIds.contains(toolId)) {
-                    // 第一次调用这个工具，记录 ID 并完整返回工具信息
-                    seenToolIds.add(toolId);
+                // 使用工具名称作为唯一标识，无论 toolId 是否为 null
+                String toolName = toolRequestMessage.getName();
+                // 检查是否是第一次看到这个工具名称
+                if (toolName != null && !seenToolIds.contains(toolName)) {
+                    // 第一次调用这个工具，记录工具名称并返回工具信息
+                    seenToolIds.add(toolName);
                     return "\n\n[选择工具] 写入文件\n\n";
                 } else {
                     // 不是第一次调用这个工具，直接返回空
@@ -124,4 +128,3 @@ public class JsonMessageStreamHandler {
         }
     }
 }
-
