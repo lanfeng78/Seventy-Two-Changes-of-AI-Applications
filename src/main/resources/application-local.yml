@@ -18,3 +18,13 @@ langchain4j:
       log-responses: true
       max-tokens: 8192
       max-retries: 2
+
+# 添加 COS 对象存储配置（需要从腾讯云获取）
+cos:
+  client:
+    host: ai-zero-code-1330582711.cos.ap-guangzhou.myqcloud.com
+    secretId: AKIDoSu8C4nRsoXD9zfAUffU8btzvgHf098w
+    secretKey: e7RaXKArUBitwmRyIVaX8YkjX8A4npgO
+    region: ap-guangzhou
+    bucket: ai-zero-code-1330582711
+

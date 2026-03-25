@@ -1,0 +1,19 @@
+package com.yupi.yuaicodemother;
+
+import com.yupi.yuaicodemother.utils.WebScreenshotUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@Slf4j
+@SpringBootTest
+public class WebScreenshotUtilsTest {
+
+    @Test
+    void saveWebPageScreenshot() {
+        String testUrl = "https://platform.deepseek.com/usage";
+        String webPageScreenshot = WebScreenshotUtils.saveWebPageScreenshot(testUrl);
+        Assertions.assertNotNull(webPageScreenshot);
+    }
+}
