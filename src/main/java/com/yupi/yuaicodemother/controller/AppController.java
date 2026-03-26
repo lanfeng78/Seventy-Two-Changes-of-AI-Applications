@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.yupi.yuaicodemother.ai.AiCodeGenTypeRoutingService;
 import com.yupi.yuaicodemother.annotation.AuthCheck;
 import com.yupi.yuaicodemother.common.BaseResponse;
 import com.yupi.yuaicodemother.common.DeleteRequest;
@@ -18,9 +19,11 @@ import com.yupi.yuaicodemother.model.dto.app.*;
 import com.yupi.yuaicodemother.model.entity.User;
 import com.yupi.yuaicodemother.model.enums.CodeGenTypeEnum;
 import com.yupi.yuaicodemother.model.vo.AppVO;
+import com.yupi.yuaicodemother.service.ProjectDownloadService;
 import com.yupi.yuaicodemother.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
@@ -30,9 +33,13 @@ import com.yupi.yuaicodemother.service.AppService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+
+import static com.yupi.yuaicodemother.constant.AppConstant.CODE_OUTPUT_ROOT_DIR;
 
 /**
  * 应用 控制层。
@@ -46,8 +53,12 @@ public class AppController {
     @Resource
     private UserService userService;
 
-    @Autowired
+    @Resource
     private AppService appService;
+
+    @Resource
+    private ProjectDownloadService projectDownloadService;
+
 
     /**
      * 应用聊天生成代码（流式 SSE）
@@ -94,23 +105,10 @@ public class AppController {
     @PostMapping("/add")
     public BaseResponse<Long> addApp(@RequestBody AppAddRequest appAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(appAddRequest == null, ErrorCode.PARAMS_ERROR);
-        // 参数校验
-        String initPrompt = appAddRequest.getInitPrompt();
-        ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
         // 获取当前登录用户
-        User loginUser = userService.getCurrentUser(request);
-        // 构造入库对象
-        App app = new App();
-        BeanUtil.copyProperties(appAddRequest, app);
-        app.setUserId(loginUser.getId());
-        // 应用名称暂时为 initPrompt 前 12 位
-        app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
-        // 暂时设置为多文件生成
-        app.setCodeGenType(CodeGenTypeEnum.VUE_PROJECT.getValue());
-        // 插入数据库
-        boolean result = appService.save(app);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(app.getId());
+        User loginUser = userService.getCurrentUser(request); // 通过请求获取当前登录用户信息
+        Long appId = appService.addApp(appAddRequest, loginUser);
+        return ResultUtils.success(appId);
     }
 
     /**
@@ -336,6 +334,27 @@ public class AppController {
         // 调用服务部署应用
         String deployUrl = appService.deployApp(appId, loginUser);
         return ResultUtils.success(deployUrl);
+    }
+
+    @GetMapping("/download/{appId}")
+    public void downloadProject(@PathVariable("appId") Long appId, User loginsUser, HttpServletResponse httpServletResponse) {
+        // 1. 基础校验
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
+        ThrowUtils.throwIf(loginsUser == null, ErrorCode.NOT_LOGIN_ERROR, "用户未登录");
+        // 2. 只有当前登录用户能下载
+        App app = appService.getById(appId);
+        if (!app.getUserId().equals(loginsUser.getId())) {
+           throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有权限");
+        }
+        // 3. 调用服务下载项目
+        String codeGenType = app.getCodeGenType();
+        String projectPath = CODE_OUTPUT_ROOT_DIR + File.separator + codeGenType + "_" + appId;
+        File projectDir = new File(projectPath);
+        ThrowUtils.throwIf(!projectDir.exists(), ErrorCode.NOT_FOUND_ERROR, "项目路径不存在");
+        ThrowUtils.throwIf(!projectDir.isDirectory(), ErrorCode.PARAMS_ERROR, "项目路径不是目录");
+        String downloadFileName = UUID.randomUUID().toString().substring(0, 8);
+        projectDownloadService.downloadProject(projectPath, downloadFileName, httpServletResponse);
+
     }
 
 
