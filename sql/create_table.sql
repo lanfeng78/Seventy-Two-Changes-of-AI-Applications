@@ -1,4 +1,3 @@
-
 create database yu_ai_code_mother;
 
 use yu_ai_code_mother;

@@ -37,6 +37,7 @@ import java.io.File;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.yupi.yuaicodemother.constant.AppConstant.CODE_OUTPUT_ROOT_DIR;
@@ -337,13 +338,15 @@ public class AppController {
     }
 
     @GetMapping("/download/{appId}")
-    public void downloadProject(@PathVariable("appId") Long appId, User loginsUser, HttpServletResponse httpServletResponse) {
+    public void downloadProject(@PathVariable("appId") Long appId, HttpServletRequest httpServletRequest
+                                , HttpServletResponse httpServletResponse) {
         // 1. 基础校验
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
-        ThrowUtils.throwIf(loginsUser == null, ErrorCode.NOT_LOGIN_ERROR, "用户未登录");
+        User currentUser = userService.getCurrentUser(httpServletRequest);
+        ThrowUtils.throwIf(currentUser == null, ErrorCode.NOT_LOGIN_ERROR, "用户未登录");
         // 2. 只有当前登录用户能下载
         App app = appService.getById(appId);
-        if (!app.getUserId().equals(loginsUser.getId())) {
+        if (!app.getUserId().equals(currentUser.getId())) {
            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有权限");
         }
         // 3. 调用服务下载项目
