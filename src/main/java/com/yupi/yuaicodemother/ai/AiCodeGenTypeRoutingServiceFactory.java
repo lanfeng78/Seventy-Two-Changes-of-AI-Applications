@@ -23,9 +23,16 @@ public class AiCodeGenTypeRoutingServiceFactory {
      * 创建AI代码生成类型路由服务实例
      */
     @Bean
-    public AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService() {
+    public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService() {
         return AiServices.builder(AiCodeGenTypeRoutingService.class)
                 .chatModel(chatModel)
                 .build();
+    }
+
+    /**
+     * 默认提供一个 Bean
+     */
+    public AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService() {
+        return createAiCodeGenTypeRoutingService();
     }
 }

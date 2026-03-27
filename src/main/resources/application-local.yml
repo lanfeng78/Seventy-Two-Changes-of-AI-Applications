@@ -28,3 +28,14 @@ cos:
     region: ap-guangzhou
     bucket: ai-zero-code-1330582711
 
+# Pexels 图片搜索配置
+pexels:
+  api-key: a7n1zMEu4dccQFxGpCv8pmuNjHSL4QspCE8rSCraXcuEa0CqQKm3FjbN
+
+# 阿里云 DashScope 配置
+dashscope:
+  api-key: sk-275aa77f2beb4abcb5e09b25201eea86
+  image-model: wan2.2-t2i-flash
+
+
+

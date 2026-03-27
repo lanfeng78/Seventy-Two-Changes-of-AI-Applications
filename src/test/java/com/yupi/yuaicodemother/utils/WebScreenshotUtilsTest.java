@@ -1,6 +1,5 @@
-package com.yupi.yuaicodemother;
+package com.yupi.yuaicodemother.utils;
 
-import com.yupi.yuaicodemother.utils.WebScreenshotUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
