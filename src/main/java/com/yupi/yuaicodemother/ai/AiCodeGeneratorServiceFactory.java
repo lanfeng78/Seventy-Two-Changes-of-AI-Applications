@@ -2,11 +2,14 @@ package com.yupi.yuaicodemother.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.yupi.yuaicodemother.ai.guardrail.PromptSafetyInputGuardrail;
+import com.yupi.yuaicodemother.ai.guardrail.RetryOutputGuardrail;
 import com.yupi.yuaicodemother.ai.tools.*;
 import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
 import com.yupi.yuaicodemother.model.enums.CodeGenTypeEnum;
 import com.yupi.yuaicodemother.service.ChatHistoryService;
+import com.yupi.yuaicodemother.utils.SpringContextUtil;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -30,10 +33,7 @@ import java.time.Duration;
 public class AiCodeGeneratorServiceFactory {
 
     @Resource
-    private ChatModel chatModel;
-
-    @Resource
-    private StreamingChatModel openAiStreamingChatModel;
+    private ChatModel openAiChatModel;
 
     @Resource
     private RedisChatMemoryStore redisChatMemoryStore;
@@ -91,22 +91,34 @@ public class AiCodeGeneratorServiceFactory {
                 .build();
         // 从数据库中加载对话历史到记忆(内存)中
         chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 50);
-
         return switch (codeGenTypeEnum) {
-            case VUE_PROJECT -> AiServices.builder(AiCodeGeneratorService.class)
-                    .chatModel(chatModel)
-                    .streamingChatModel(openAiStreamingChatModel)
-                    .chatMemoryProvider(memoryId -> chatMemory)
-                    .tools(toolManager.getAllTools())
-                    .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
-                            toolExecutionRequest, "Error: there is no such tool" + toolExecutionRequest.name()))
-                    .build();
-            case HTML, MULTI_FILE -> AiServices.builder(AiCodeGeneratorService.class)
-                    .chatModel(chatModel)
-                    .streamingChatModel(openAiStreamingChatModel)
-                    .chatMemory(chatMemory)
-                    .build();
-            default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型：" + codeGenTypeEnum.getValue());
+            case VUE_PROJECT -> {
+                StreamingChatModel openAiStreamingChatModel = SpringContextUtil.getBean("reasoningStreamingChatModelPrototype", StreamingChatModel.class);
+                yield AiServices.builder(AiCodeGeneratorService.class)
+                        .chatModel(openAiChatModel)
+                        .maxSequentialToolsInvocations(20)
+                        .streamingChatModel(openAiStreamingChatModel)
+                        .chatMemoryProvider(memoryId -> chatMemory)
+                        .tools(toolManager.getAllTools())
+                        .inputGuardrails(new PromptSafetyInputGuardrail())  // 添加输入护轨
+                        .outputGuardrails(new RetryOutputGuardrail())   // 添加输出护轨
+                        .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
+                                toolExecutionRequest, "Error: there is no such tool" + toolExecutionRequest.name()))
+                        .build();
+            }
+            case HTML, MULTI_FILE -> {
+                StreamingChatModel openAiStreamingChatModel = SpringContextUtil.getBean("streamingChatModelPrototype", StreamingChatModel.class);
+                yield AiServices.builder(AiCodeGeneratorService.class)
+                        .chatModel(openAiChatModel)
+                        .maxSequentialToolsInvocations(20)
+                        .streamingChatModel(openAiStreamingChatModel)
+                        .inputGuardrails(new PromptSafetyInputGuardrail())  // 添加输入护轨
+                        .outputGuardrails(new RetryOutputGuardrail())   // 添加输出护轨
+                        .chatMemory(chatMemory)
+                        .build();
+            }
+            default ->
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型：" + codeGenTypeEnum.getValue());
         };
 
     }

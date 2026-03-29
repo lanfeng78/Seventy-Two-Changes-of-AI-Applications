@@ -2,6 +2,7 @@ package com.yupi.yuaicodemother.langgraph4j.ai;
 
 import com.yupi.yuaicodemother.ai.AiCodeGenTypeRoutingService;
 import com.yupi.yuaicodemother.ai.AiCodeGenTypeRoutingServiceFactory;
+import com.yupi.yuaicodemother.utils.SpringContextUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -11,8 +12,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 public class AiConcurrentTest {
 
-    @Resource
-    private AiCodeGenTypeRoutingServiceFactory routingServiceFactory;
 
     @Test
     public void testConcurrentRoutingCalls() throws InterruptedException {
@@ -27,6 +26,7 @@ public class AiConcurrentTest {
             final String prompt = prompts[i];
             final int index = i + 1;
             threads[i] = Thread.ofVirtual().start(() -> {
+                AiCodeGenTypeRoutingServiceFactory routingServiceFactory = SpringContextUtil.getBean(AiCodeGenTypeRoutingServiceFactory.class);
                 AiCodeGenTypeRoutingService service = routingServiceFactory.createAiCodeGenTypeRoutingService();
                 var result = service.routeCodeGenType(prompt);
                 log.info("线程 {}: {} -> {}", index, prompt, result.getValue());

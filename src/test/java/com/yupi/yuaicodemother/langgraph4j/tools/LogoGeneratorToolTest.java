@@ -8,8 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class LogoGeneratorToolTest {
@@ -26,8 +25,6 @@ class LogoGeneratorToolTest {
         assertEquals(ImageCategoryEnum.LOGO, firstLogo.getCategory());
         assertNotNull(firstLogo.getDescription());
         assertNotNull(firstLogo.getUrl());
-        logos.forEach(logo ->
-                System.out.println("Logo: " + logo.getDescription() + " - " + logo.getUrl())
-        );
+        logos.forEach(logo -> System.out.println("Logo: " + logo.getDescription() + " - " + logo.getUrl()));
     }
 }
