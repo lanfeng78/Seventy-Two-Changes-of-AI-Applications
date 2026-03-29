@@ -34,6 +34,7 @@ import com.yupi.yuaicodemother.utils.SpringContextUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -70,6 +71,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private ScreenshotService screenshotService;
+
+    @Value("${code.deploy-host:http://localhost}")
+    private String deployHost;
 
 
     @Override
@@ -243,7 +247,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         boolean updated = this.updateById(newApp);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
         // 11. 返回可访问的url
-        String appDeployUrl = String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
+        String appDeployUrl = String.format("%s/%s/", deployHost, deployKey);
         // 12. 异步生成截图并更新应用封面
         generateAppScreenshotAsync(appId, appDeployUrl);
         return appDeployUrl;
